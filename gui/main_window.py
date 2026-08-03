@@ -5,6 +5,7 @@ logger = logging.getLogger("protokolist.gui")
 import gc
 import json
 import os
+import shutil
 import threading
 import time
 import tempfile
@@ -668,7 +669,10 @@ class ProtokolistApp(ctk.CTk):
 
         try:
             self.current_audio_path = self.recorder.stop(self.project.folder)
-            logger.info("Запись остановлена. Файл=%s", audio_path)
+            logger.info(
+                "Запись остановлена. Файл=%s",
+                self.current_audio_path,
+                )
             self.live_stop_event.set()
             self.stop_button.configure(state="disabled")
             self._stop_timer_and_level()

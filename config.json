@@ -1,5 +1,5 @@
 {
-  "model": "turbo",
+  "model": "medium",
   "language": "ru",
   "device": "cpu",
   "compute_type": "int8",
