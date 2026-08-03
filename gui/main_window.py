@@ -1,15 +1,16 @@
 from __future__ import annotations
 
-import logging
-logger = logging.getLogger("protokolist.gui")
 import gc
 import json
+import logging
 import os
 import shutil
+import tempfile
 import threading
 import time
-import tempfile
 from pathlib import Path
+
+from performance_metrics import build_metrics, format_metrics
 from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
@@ -33,6 +34,9 @@ from whisper_engine.transcriber import (
     Transcriber,
     format_segments,
 )
+
+
+logger = logging.getLogger("protokolist.gui")
 
 
 class ProtokolistApp(ctk.CTk):
@@ -769,6 +773,8 @@ class ProtokolistApp(ctk.CTk):
             input_path = enhance_speech(raw_path, clean_path)
 
         try:
+            started_at = time.perf_counter()
+
             segments = self.transcriber.transcribe(
                 input_path,
                 language=self.config_data.get("language", "ru"),
@@ -816,6 +822,18 @@ class ProtokolistApp(ctk.CTk):
                 block = "\n".join(lines) + "\n"
                 if self.correction_switch.get():
                     block = self.postprocessor.correct(block) + "\n"
+
+                metrics = build_metrics(
+                    model_name=self.transcriber.model_name,
+                    audio_path=input_path,
+                    started_at=started_at,
+                    text=block,
+                )
+                logger.info(
+                    "Метрики живого фрагмента: %s",
+                    format_metrics(metrics),
+                )
+
                 context_update = " ".join(accepted_text)
                 self.after(
                     0,
@@ -872,6 +890,7 @@ class ProtokolistApp(ctk.CTk):
         transcriber: Transcriber | None = None,
     ) -> None:
         try:
+            started_at = time.perf_counter()
             engine = transcriber or self.transcriber
             if engine is None:
                 raise RuntimeError("Модель Whisper ещё не загружена.")
@@ -909,6 +928,17 @@ class ProtokolistApp(ctk.CTk):
             text = format_segments(segments)
             if self.correction_switch.get():
                 text = self.postprocessor.correct(text)
+
+            metrics = build_metrics(
+                model_name=engine.model_name,
+                audio_path=input_path,
+                started_at=started_at,
+                text=text,
+            )
+            logger.info(
+                "Метрики распознавания: %s",
+                format_metrics(metrics),
+            )
 
             if clean_path.exists():
                 clean_path.unlink(missing_ok=True)
@@ -981,7 +1011,6 @@ class ProtokolistApp(ctk.CTk):
             )
         finally:
             self.final_refine_running = False
-        self.postprocessor = TextPostprocessor()
 
     def retranscribe_full_audio(self) -> None:
         audio_path = self._find_current_audio()
