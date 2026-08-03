@@ -1,0 +1,37 @@
+# Виртуальные окружения
+venv/
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+
+# Рабочие данные совещаний
+archive/*
+recordings/*
+!archive/.gitkeep
+!recordings/.gitkeep
+
+# Аудио и документы
+*.wav
+*.mp3
+*.m4a
+*.docx
+*.xlsx
+*.pdf
+
+# Кэш моделей
+.cache/
+models/
+
+# Среды разработки
+.vscode/
+.idea/
+
+# Системные файлы
+Thumbs.db
+.DS_Store
+
+# Логи
+*.log
