@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+logger = logging.getLogger("protokolist.gui")
 import gc
 import json
 import os
@@ -589,6 +591,7 @@ class ProtokolistApp(ctk.CTk):
             )
 
     def _whisper_ready(self, model_name: str) -> None:
+        logger.info("Модель Whisper загружена: %s", model_name)
         self.model_loading = False
         self.start_button.configure(state="normal")
         self.load_model_button.configure(state="normal")
@@ -606,6 +609,7 @@ class ProtokolistApp(ctk.CTk):
         self._show_error("Whisper", exc)
 
     def start_recording(self) -> None:
+        
         if self.recorder.recording:
             return
 
@@ -635,6 +639,11 @@ class ProtokolistApp(ctk.CTk):
             self.live_transcription_active = bool(self.live_switch.get())
 
             self.recorder.start()
+            logger.info(
+                "Начало записи. Совещание=%r, микрофон=%r",
+                self.title_entry.get().strip(),
+                self.device_combo.get(),
+            )
             self.recording_started_at = time.time()
 
             if self.live_transcription_active:
@@ -659,6 +668,7 @@ class ProtokolistApp(ctk.CTk):
 
         try:
             self.current_audio_path = self.recorder.stop(self.project.folder)
+            logger.info("Запись остановлена. Файл=%s", audio_path)
             self.live_stop_event.set()
             self.stop_button.configure(state="disabled")
             self._stop_timer_and_level()
@@ -1036,7 +1046,9 @@ class ProtokolistApp(ctk.CTk):
         temp_dir = self.project.folder / ".live_temp"
         if temp_dir.exists():
             shutil.rmtree(temp_dir, ignore_errors=True)
+            
     def _show_transcript(self, text: str) -> None:
+        logger.info("Расшифровка завершена. Символов=%d", len(text))
         self.transcript_box.delete("1.0", "end")
         self.transcript_box.insert("1.0", text)
         self.status_label.configure(
@@ -1190,6 +1202,7 @@ class ProtokolistApp(ctk.CTk):
 
             meeting = self._collect_meeting()
             self.project.save(meeting)
+            logger.info("Проект сохранён: %s", self.project.folder)
             self.status_label.configure(
                 text=f"Статус: проект сохранён — {self.project.folder.name}"
             )
@@ -1342,6 +1355,7 @@ class ProtokolistApp(ctk.CTk):
         )
 
     def _show_error(self, title: str, exc: Exception) -> None:
+        logger.exception("%s: %s", title, exc)
         self.status_label.configure(text=f"Статус: ошибка — {exc}")
         messagebox.showerror(title, str(exc))
 
