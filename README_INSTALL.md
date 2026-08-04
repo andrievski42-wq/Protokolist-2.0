@@ -1,13 +1,50 @@
-# Куда скопировать файлы
+# Установка обновления Corporate UI + VU-метр
 
-1. `gui/main_window.py` → заменить файл:
-   `C:\Projects\Protokolist\gui\main_window.py`
+Скопируйте содержимое архива в:
 
-2. `performance_metrics.py` → положить в корень:
-   `C:\Projects\Protokolist\performance_metrics.py`
+```text
+C:\Projects\Protokolist
+```
 
-3. `tests/test_performance_metrics.py` → положить в:
-   `C:\Projects\Protokolist\tests\test_performance_metrics.py`
+с сохранением структуры папок и заменой:
+
+```text
+gui\main_window.py
+```
+
+Должна появиться новая папка:
+
+```text
+assets\
+```
+
+В ней находятся:
+
+- `company_logo_light.png`
+- `company_logo_dark.png`
+- `company_logo_light.svg`
+- `company_logo_dark.svg`
+- `app_icon.png`
+
+## Зависимость
+
+Проверьте, установлен ли Pillow:
+
+```powershell
+python -m pip show Pillow
+```
+
+Если пакет не найден:
+
+```powershell
+python -m pip install Pillow
+```
+
+И добавьте в `requirements.txt`:
+
+```text
+Pillow>=10.0
+```
 
 ## Проверка
 
@@ -16,23 +53,17 @@ python -m pytest -v
 python main.py
 ```
 
-После тестовой записи проверьте:
+Во время записи должны отображаться:
 
-```text
-logs\protokolist.log
-```
-
-Там должны появиться строки:
-
-```text
-Метрики живого фрагмента: ...
-Метрики распознавания: ...
-```
+- фирменный логотип в верхней части окна;
+- иконка приложения;
+- индикатор «Уровень микрофона»;
+- числовой уровень от 0% до 100%.
 
 ## Коммит
 
 ```powershell
 git add .
-git commit -m "Add recognition performance metrics"
+git commit -m "Add corporate branding and restore microphone level meter"
 git push
 ```

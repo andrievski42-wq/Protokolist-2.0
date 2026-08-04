@@ -1,0 +1,2 @@
+# Добавьте в requirements.txt, если Pillow ещё не указан:
+Pillow>=10.0

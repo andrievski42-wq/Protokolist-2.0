@@ -1,20 +1,22 @@
 from __future__ import annotations
 
+import logging
+import math
+logger = logging.getLogger("protokolist.gui")
 import gc
 import json
-import logging
 import os
 import shutil
-import tempfile
 import threading
 import time
-from pathlib import Path
-
+import tempfile
 from performance_metrics import build_metrics, format_metrics
-from tkinter import filedialog, messagebox
+from pathlib import Path
+from tkinter import PhotoImage, filedialog, messagebox
 
 import customtkinter as ctk
 import soundfile as sf
+from PIL import Image
 
 from analysis_engine.text_postprocessor import TextPostprocessor
 from analysis_engine.protocol_analyzer import (
@@ -36,9 +38,6 @@ from whisper_engine.transcriber import (
 )
 
 
-logger = logging.getLogger("protokolist.gui")
-
-
 class ProtokolistApp(ctk.CTk):
     def __init__(self) -> None:
         super().__init__()
@@ -46,7 +45,7 @@ class ProtokolistApp(ctk.CTk):
         ctk.set_appearance_mode("System")
         ctk.set_default_color_theme("blue")
 
-        self.title("Протоколист 4.0 — офисный CPU")
+        self.title("Протоколист 4.1 — Corporate UI")
         self.geometry("1280x860")
         self.minsize(1080, 720)
 
@@ -74,6 +73,10 @@ class ProtokolistApp(ctk.CTk):
         self.live_first_chunk = True
         self.final_refine_running = False
         self.postprocessor = TextPostprocessor()
+        self.display_level = 0.0
+        self.company_logo_image: ctk.CTkImage | None = None
+        self.window_icon: PhotoImage | None = None
+        self._load_brand_assets()
 
         self._build_ui()
         self._refresh_devices()
@@ -93,15 +96,52 @@ class ProtokolistApp(ctk.CTk):
             encoding="utf-8",
         )
 
+    def _load_brand_assets(self) -> None:
+        assets_dir = Path("assets")
+        light_logo = assets_dir / "company_logo_light.png"
+        dark_logo = assets_dir / "company_logo_dark.png"
+        icon_path = assets_dir / "app_icon.png"
+
+        try:
+            if light_logo.exists() and dark_logo.exists():
+                self.company_logo_image = ctk.CTkImage(
+                    light_image=Image.open(light_logo),
+                    dark_image=Image.open(dark_logo),
+                    size=(370, 50),
+                )
+
+            if icon_path.exists():
+                self.window_icon = PhotoImage(file=str(icon_path))
+                self.iconphoto(True, self.window_icon)
+        except Exception as exc:
+            logger.warning("Не удалось загрузить фирменные изображения: %s", exc)
+
     def _build_ui(self) -> None:
         header = ctk.CTkFrame(self)
         header.pack(fill="x", padx=18, pady=(14, 8))
 
+        brand_frame = ctk.CTkFrame(header, fg_color="transparent")
+        brand_frame.pack(side="left", padx=15, pady=8)
+
+        if self.company_logo_image is not None:
+            ctk.CTkLabel(
+                brand_frame,
+                text="",
+                image=self.company_logo_image,
+            ).pack(anchor="w")
+        else:
+            ctk.CTkLabel(
+                brand_frame,
+                text="ПРОТОКОЛИСТ 4.1",
+                font=("Arial", 28, "bold"),
+            ).pack(anchor="w")
+
         ctk.CTkLabel(
-            header,
-            text="ПРОТОКОЛИСТ 4.0",
-            font=("Arial", 28, "bold"),
-        ).pack(side="left", padx=15, pady=12)
+            brand_frame,
+            text="Офлайн-система протоколирования совещаний",
+            font=("Arial", 13),
+            anchor="w",
+        ).pack(anchor="w", pady=(2, 0))
 
         self.timer_label = ctk.CTkLabel(
             header,
@@ -126,9 +166,35 @@ class ProtokolistApp(ctk.CTk):
         bottom = ctk.CTkFrame(self)
         bottom.pack(fill="x", padx=18, pady=(4, 12))
 
-        self.level_bar = ctk.CTkProgressBar(bottom, width=180)
+        mic_frame = ctk.CTkFrame(bottom, fg_color="transparent")
+        mic_frame.pack(side="left", padx=(10, 14), pady=8)
+
+        ctk.CTkLabel(
+            mic_frame,
+            text="🎤 Уровень микрофона",
+            font=("Arial", 12, "bold"),
+            anchor="w",
+        ).pack(anchor="w")
+
+        meter_row = ctk.CTkFrame(mic_frame, fg_color="transparent")
+        meter_row.pack(anchor="w", pady=(3, 0))
+
+        self.level_bar = ctk.CTkProgressBar(
+            meter_row,
+            width=230,
+            height=14,
+        )
         self.level_bar.set(0)
-        self.level_bar.pack(side="left", padx=10, pady=10)
+        self.level_bar.pack(side="left")
+
+        self.level_value_label = ctk.CTkLabel(
+            meter_row,
+            text="0%",
+            width=42,
+            anchor="e",
+            font=("Consolas", 12, "bold"),
+        )
+        self.level_value_label.pack(side="left", padx=(8, 0))
 
         self.status_label = ctk.CTkLabel(
             bottom,
@@ -773,8 +839,6 @@ class ProtokolistApp(ctk.CTk):
             input_path = enhance_speech(raw_path, clean_path)
 
         try:
-            started_at = time.perf_counter()
-
             segments = self.transcriber.transcribe(
                 input_path,
                 language=self.config_data.get("language", "ru"),
@@ -822,18 +886,6 @@ class ProtokolistApp(ctk.CTk):
                 block = "\n".join(lines) + "\n"
                 if self.correction_switch.get():
                     block = self.postprocessor.correct(block) + "\n"
-
-                metrics = build_metrics(
-                    model_name=self.transcriber.model_name,
-                    audio_path=input_path,
-                    started_at=started_at,
-                    text=block,
-                )
-                logger.info(
-                    "Метрики живого фрагмента: %s",
-                    format_metrics(metrics),
-                )
-
                 context_update = " ".join(accepted_text)
                 self.after(
                     0,
@@ -929,17 +981,6 @@ class ProtokolistApp(ctk.CTk):
             if self.correction_switch.get():
                 text = self.postprocessor.correct(text)
 
-            metrics = build_metrics(
-                model_name=engine.model_name,
-                audio_path=input_path,
-                started_at=started_at,
-                text=text,
-            )
-            logger.info(
-                "Метрики распознавания: %s",
-                format_metrics(metrics),
-            )
-
             if clean_path.exists():
                 clean_path.unlink(missing_ok=True)
 
@@ -1011,6 +1052,7 @@ class ProtokolistApp(ctk.CTk):
             )
         finally:
             self.final_refine_running = False
+        self.postprocessor = TextPostprocessor()
 
     def retranscribe_full_audio(self) -> None:
         audio_path = self._find_current_audio()
@@ -1143,11 +1185,26 @@ class ProtokolistApp(ctk.CTk):
 
     def _update_level(self) -> None:
         if not self.recorder.recording:
+            self.display_level = 0.0
+            self.level_bar.set(0)
+            self.level_value_label.configure(text="0%")
             return
 
-        level = min(self.recorder.last_level * 8.0, 1.0)
-        self.level_bar.set(level)
-        self.level_job = self.after(100, self._update_level)
+        rms = max(float(self.recorder.last_level), 1e-7)
+        dbfs = 20.0 * math.log10(rms)
+
+        # Рабочая шкала: от -60 dBFS (тишина) до 0 dBFS (перегрузка).
+        normalized = max(0.0, min(1.0, (dbfs + 60.0) / 60.0))
+
+        # Сглаживание: быстрый подъём и более плавное затухание.
+        smoothing = 0.55 if normalized > self.display_level else 0.22
+        self.display_level += (normalized - self.display_level) * smoothing
+
+        percent = int(round(self.display_level * 100))
+        self.level_bar.set(self.display_level)
+        self.level_value_label.configure(text=f"{percent}%")
+
+        self.level_job = self.after(50, self._update_level)
 
     def _stop_timer_and_level(self) -> None:
         if self.timer_job is not None:
@@ -1156,7 +1213,9 @@ class ProtokolistApp(ctk.CTk):
         if self.level_job is not None:
             self.after_cancel(self.level_job)
             self.level_job = None
+        self.display_level = 0.0
         self.level_bar.set(0)
+        self.level_value_label.configure(text="0%")
 
     def _schedule_autosave(self) -> None:
         seconds = max(10, int(self.config_data.get("autosave_seconds", 30)))
